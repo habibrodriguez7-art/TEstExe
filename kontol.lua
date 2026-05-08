@@ -1,4 +1,3 @@
---awda
 repeat task.wait() until game:IsLoaded()
 if setfpscap then setfpscap(1000000) end
 local Players           = game:GetService("Players")
@@ -742,31 +741,20 @@ do
             autoSkill = v
             if not v then return end
             task.spawn(function()
-                local pg = LocalPlayer:FindFirstChild("PlayerGui")
-                if not pg then return end
+                local RS = game:GetService("ReplicatedStorage")
+                local Players = game:GetService("Players")
+                local RunService = game:GetService("RunService")
+                local LocalPlayer = Players.LocalPlayer
 
-                local function pressSkillCheck()
-                    pcall(function()
-                        -- Mobile: cari GUI Survivor-mob
-                        local mobGui = pg:FindFirstChild("Survivor-mob")
-                        if mobGui then
-                            local controls = mobGui:FindFirstChild("Controls")
-                            if controls then
-                                local mobileCheck = controls:FindFirstChild("Check")
-                                if mobileCheck and mobileCheck:IsA("ImageButton") then
-                                    mobileCheck.MouseButton1Click:Fire()
-                                    return
-                                end
-                            end
-                        end
+                -- Ambil remote
+                local healRemotes = RS:WaitForChild("Remotes"):WaitForChild("Healing")
+                local skillEvent  = healRemotes:WaitForChild("SkillCheckEvent")
+                local resultEvent = healRemotes:WaitForChild("SkillCheckResultEvent")
 
-                        -- Fallback PC: Space key
-                        local vim = game:GetService("VirtualInputManager")
-                        vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                        task.wait(0.01)
-                        vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                    end)
-                end
+                local pg = LocalPlayer:WaitForChild("PlayerGui")
+
+                -- Ambil controls untuk cek movement
+                local controls = require(LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")):GetControls()
 
                 local function lineInGoal(line, goal)
                     if not line or not goal then return false end
@@ -781,7 +769,6 @@ do
                     end
                 end
 
-                -- Tunggu SkillCheckPromptGui (bisa muncul saat match dimulai)
                 local function waitForSkillGui()
                     local skillGui = pg:WaitForChild("SkillCheckPromptGui", 999)
                     if not skillGui then return end
@@ -801,8 +788,30 @@ do
                         hbConn = RunService.Heartbeat:Connect(function()
                             if not autoSkill then stopHb(); return end
                             if not check.Visible then stopHb(); return end
+
+                            -- Cancel jika karakter bergerak (WASD / joystick mobile)
+                            local moveVec = controls:GetMoveVector()
+                            if moveVec.X ~= 0 or moveVec.Z ~= 0 or moveVec.Y ~= 0 then
+                                -- Kirim cancel ke server seperti di script asli
+                                pcall(function()
+                                    -- Cari target healing dari attribute
+                                    local char = LocalPlayer.Character
+                                    local interract = char and char:FindFirstChild("CheckInterractable")
+                                    local target = interract and interract:GetAttribute("currentTarget")
+                                    resultEvent:FireServer("neutral", 0, target)
+                                end)
+                                stopHb()
+                                return
+                            end
+
+                            -- Perfect zone: fire success
                             if lineInGoal(line, goal) then
-                                pressSkillCheck()
+                                pcall(function()
+                                    local char = LocalPlayer.Character
+                                    local interract = char and char:FindFirstChild("CheckInterractable")
+                                    local target = interract and interract:GetAttribute("currentTarget")
+                                    resultEvent:FireServer("success", 1, target)
+                                end)
                                 stopHb()
                             end
                         end)
@@ -819,11 +828,10 @@ do
 
                     if check.Visible then startHb() end
 
-                    -- Tunggu sampai GUI dihapus (match selesai)
+                    -- Kalau GUI hilang (match selesai), tunggu match berikutnya
                     skillGui.AncestryChanged:Connect(function()
                         stopHb()
                         if autoSkill then
-                            -- Match selesai, tunggu match berikutnya
                             waitForSkillGui()
                         end
                     end)
