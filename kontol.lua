@@ -1,3 +1,4 @@
+--wdsq2d
 repeat task.wait() until game:IsLoaded()
 if setfpscap then setfpscap(1000000) end
 local Players           = game:GetService("Players")
@@ -733,88 +734,117 @@ end
 
 do
     local autoSkill = false
-    local TouchID = 1
-    local ActionPath = "SkillCheckPromptGui.Check.Space"
-
-    local function TriggerMobileButton()
-        local cur = PlayerGui
-        for seg in string.gmatch(ActionPath, "[^%.]+") do
-            cur = cur and cur:FindFirstChild(seg)
-        end
-        if cur and cur:IsA("GuiObject") then
-            local pos   = cur.AbsolutePosition
-            local sz    = cur.AbsoluteSize
-            local inset = game:GetService("GuiService"):GetGuiInset()
-            local cx    = pos.X + sz.X / 2 + inset.X
-            local cy    = pos.Y + sz.Y / 2 + inset.Y
-            pcall(function()
-                VirtualInputManager:SendTouchEvent(TouchID, 0, cx, cy)
-                task.wait(0.01)
-                VirtualInputManager:SendTouchEvent(TouchID, 2, cx, cy)
-            end)
-        end
-    end
+    local isMobile  = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
     local s = SurTab:AddSection("Generator")
     s:AddToggle({
         Title    = "Auto SkillCheck (Perfect)",
         Default  = false,
+        NoSave   = true,
         Callback = function(v)
             autoSkill = v
             if not v then return end
+
             task.spawn(function()
-                local pg        = LocalPlayer:WaitForChild("PlayerGui")
-                local promptGui = pg:WaitForChild("SkillCheckPromptGui", 15)
-                local check     = promptGui and promptGui:WaitForChild("Check", 15)
+                local Remotes     = ReplicatedStorage:WaitForChild("Remotes")
+                local genEvent    = Remotes:WaitForChild("Generator"):WaitForChild("SkillCheckEvent")
+                local healEvent   = Remotes:WaitForChild("Healing"):WaitForChild("SkillCheckEvent")
+
+                local pg          = LocalPlayer:WaitForChild("PlayerGui")
+                local promptGui   = pg:WaitForChild("SkillCheckPromptGui", 15)
+                if not promptGui then return end
+                local check       = promptGui:WaitForChild("Check", 10)
                 if not check then return end
-                local line = check:WaitForChild("Line")
-                local goal = check:WaitForChild("Goal")
+                local line        = check:WaitForChild("Line", 10)
+                local goal        = check:WaitForChild("Goal", 10)
+                if not line or not goal then return end
 
-                local visConn, heartConn
+                local heartbeatConn = nil
 
-                local function stopHeartbeat()
-                    if heartConn then heartConn:Disconnect() heartConn = nil end
+                local function triggerInput()
+                    if isMobile then
+                        -- Cara ZarVD: pakai SendTouchEvent ke koordinat absolut button
+                        local spaceBtn = check:FindFirstChild("Space")
+                        if spaceBtn then
+                            local pos = spaceBtn.AbsolutePosition
+                            local sz  = spaceBtn.AbsoluteSize
+                            local inset = game:GetService("GuiService"):GetGuiInset()
+                            local cx  = pos.X + sz.X / 2 + inset.X
+                            local cy  = pos.Y + sz.Y / 2 + inset.Y
+                            local vim = game:GetService("VirtualInputManager")
+                            local tid = 9901
+                            pcall(function()
+                                vim:SendTouchEvent(tid, 0, cx, cy)
+                                task.wait(0.03)
+                                vim:SendTouchEvent(tid, 2, cx, cy)
+                            end)
+                        end
+                    else
+                        local vim = game:GetService("VirtualInputManager")
+                        pcall(function()
+                            vim:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
+                            task.wait(0.03)
+                            vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end)
+                    end
                 end
 
-                local function startHeartbeat()
-                    if heartConn then return end
-                    heartConn = RunService.Heartbeat:Connect(function()
-                        if not autoSkill then stopHeartbeat() return end
+                local function handleSkillCheck()
+                    if not autoSkill then return end
+
+                    -- Tunggu check visible
+                    local waitStart = tick()
+                    while not check.Visible do
+                        if not autoSkill then return end
+                        if tick() - waitStart > 3 then return end
+                        task.wait(0.016)
+                    end
+
+                    if heartbeatConn then heartbeatConn:Disconnect() heartbeatConn = nil end
+
+                    local fired = false
+                    heartbeatConn = RunService.Heartbeat:Connect(function()
+                        if fired or not autoSkill then
+                            if heartbeatConn then heartbeatConn:Disconnect(); heartbeatConn = nil end
+                            return
+                        end
+                        if not check.Visible then
+                            if heartbeatConn then heartbeatConn:Disconnect(); heartbeatConn = nil end
+                            return
+                        end
 
                         local lr = line.Rotation % 360
                         local gr = goal.Rotation % 360
+
+                        -- Perfect zone: 101-115 derajat relatif dari goal
                         local ss = (gr + 101) % 360
                         local se = (gr + 115) % 360
 
-                        local inZone
-                        if ss > se then
-                            inZone = lr >= ss or lr <= se
-                        else
-                            inZone = lr >= ss and lr <= se
-                        end
+                        local inZone = ss > se
+                            and (lr >= ss or lr <= se)
+                            or  (lr >= ss and lr <= se)
 
                         if inZone then
-                            stopHeartbeat()
-                            TriggerMobileButton()
+                            fired = true
+                            if heartbeatConn then heartbeatConn:Disconnect(); heartbeatConn = nil end
+                            triggerInput()
                         end
                     end)
                 end
 
-                visConn = check:GetPropertyChangedSignal("Visible"):Connect(function()
-                    if not autoSkill then return end
-                    if check.Visible then
-                        startHeartbeat()
-                    else
-                        stopHeartbeat()
-                    end
+                local genConn  = genEvent.OnClientEvent:Connect(function()
+                    task.spawn(handleSkillCheck)
+                end)
+                local healConn = healEvent.OnClientEvent:Connect(function()
+                    task.spawn(handleSkillCheck)
                 end)
 
-                if check.Visible then startHeartbeat() end
+                -- Jaga koneksi hidup selama toggle aktif
+                while autoSkill do task.wait(0.2) end
 
-                while autoSkill do task.wait(0.1) end
-
-                stopHeartbeat()
-                if visConn then visConn:Disconnect() visConn = nil end
+                genConn:Disconnect()
+                healConn:Disconnect()
+                if heartbeatConn then heartbeatConn:Disconnect(); heartbeatConn = nil end
             end)
         end,
     })
