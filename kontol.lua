@@ -744,12 +744,30 @@ do
                 local pg = LocalPlayer:FindFirstChild("PlayerGui")
                 if not pg then return end
 
-                local function pressSpace()
+                local function pressSkillCheck()
                     pcall(function()
-                        local vim = game:GetService("VirtualInputManager")
-                        vim:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
-                        task.wait(0.01)
-                        vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        local skillGui = pg:FindFirstChild("SkillCheckPromptGui")
+                        if not skillGui then return end
+                        local check = skillGui:FindFirstChild("Check")
+                        if not check then return end
+
+                        -- Coba Mobile Button dulu
+                        local mobilePressed = false
+                        for _, v in ipairs(check:GetDescendants()) do
+                            if v:IsA("TextButton") or v:IsA("ImageButton") then
+                                v.MouseButton1Click:Fire()
+                                mobilePressed = true
+                                return
+                            end
+                        end
+
+                        -- Fallback PC: Space key
+                        if not mobilePressed then
+                            local vim = game:GetService("VirtualInputManager")
+                            vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                            task.wait(0.01)
+                            vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end
                     end)
                 end
 
@@ -766,7 +784,7 @@ do
                     end
                 end
 
-                local skillGui  = pg:WaitForChild("SkillCheckPromptGui", 10)
+                local skillGui = pg:WaitForChild("SkillCheckPromptGui", 10)
                 if not skillGui then return end
                 local check = skillGui:WaitForChild("Check", 10)
                 if not check then return end
@@ -785,7 +803,7 @@ do
                         if not autoSkill then stopHb(); return end
                         if not check.Visible then stopHb(); return end
                         if lineInGoal(line, goal) then
-                            pressSpace()
+                            pressSkillCheck()
                             stopHb()
                         end
                     end)
