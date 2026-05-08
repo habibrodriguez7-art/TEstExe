@@ -1,3 +1,4 @@
+--awda
 repeat task.wait() until game:IsLoaded()
 if setfpscap then setfpscap(1000000) end
 local Players           = game:GetService("Players")
@@ -746,28 +747,24 @@ do
 
                 local function pressSkillCheck()
                     pcall(function()
-                        local skillGui = pg:FindFirstChild("SkillCheckPromptGui")
-                        if not skillGui then return end
-                        local check = skillGui:FindFirstChild("Check")
-                        if not check then return end
-
-                        -- Coba Mobile Button dulu
-                        local mobilePressed = false
-                        for _, v in ipairs(check:GetDescendants()) do
-                            if v:IsA("TextButton") or v:IsA("ImageButton") then
-                                v.MouseButton1Click:Fire()
-                                mobilePressed = true
-                                return
+                        -- Mobile: cari GUI Survivor-mob
+                        local mobGui = pg:FindFirstChild("Survivor-mob")
+                        if mobGui then
+                            local controls = mobGui:FindFirstChild("Controls")
+                            if controls then
+                                local mobileCheck = controls:FindFirstChild("Check")
+                                if mobileCheck and mobileCheck:IsA("ImageButton") then
+                                    mobileCheck.MouseButton1Click:Fire()
+                                    return
+                                end
                             end
                         end
 
                         -- Fallback PC: Space key
-                        if not mobilePressed then
-                            local vim = game:GetService("VirtualInputManager")
-                            vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-                            task.wait(0.01)
-                            vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                        end
+                        local vim = game:GetService("VirtualInputManager")
+                        vim:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        task.wait(0.01)
+                        vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                     end)
                 end
 
@@ -784,44 +781,57 @@ do
                     end
                 end
 
-                local skillGui = pg:WaitForChild("SkillCheckPromptGui", 10)
-                if not skillGui then return end
-                local check = skillGui:WaitForChild("Check", 10)
-                if not check then return end
-                local line = check:WaitForChild("Line", 10)
-                local goal = check:WaitForChild("Goal", 10)
-                if not line or not goal then return end
+                -- Tunggu SkillCheckPromptGui (bisa muncul saat match dimulai)
+                local function waitForSkillGui()
+                    local skillGui = pg:WaitForChild("SkillCheckPromptGui", 999)
+                    if not skillGui then return end
+                    local check = skillGui:WaitForChild("Check", 999)
+                    if not check then return end
+                    local line = check:WaitForChild("Line", 999)
+                    local goal = check:WaitForChild("Goal", 999)
+                    if not line or not goal then return end
 
-                local hbConn = nil
-                local function stopHb()
-                    if hbConn then hbConn:Disconnect(); hbConn = nil end
-                end
+                    local hbConn = nil
+                    local function stopHb()
+                        if hbConn then hbConn:Disconnect(); hbConn = nil end
+                    end
 
-                local function startHb()
-                    stopHb()
-                    hbConn = RunService.Heartbeat:Connect(function()
-                        if not autoSkill then stopHb(); return end
-                        if not check.Visible then stopHb(); return end
-                        if lineInGoal(line, goal) then
-                            pressSkillCheck()
+                    local function startHb()
+                        stopHb()
+                        hbConn = RunService.Heartbeat:Connect(function()
+                            if not autoSkill then stopHb(); return end
+                            if not check.Visible then stopHb(); return end
+                            if lineInGoal(line, goal) then
+                                pressSkillCheck()
+                                stopHb()
+                            end
+                        end)
+                    end
+
+                    check:GetPropertyChangedSignal("Visible"):Connect(function()
+                        if not autoSkill then return end
+                        if check.Visible then
+                            startHb()
+                        else
                             stopHb()
+                        end
+                    end)
+
+                    if check.Visible then startHb() end
+
+                    -- Tunggu sampai GUI dihapus (match selesai)
+                    skillGui.AncestryChanged:Connect(function()
+                        stopHb()
+                        if autoSkill then
+                            -- Match selesai, tunggu match berikutnya
+                            waitForSkillGui()
                         end
                     end)
                 end
 
-                check:GetPropertyChangedSignal("Visible"):Connect(function()
-                    if not autoSkill then return end
-                    if check.Visible then
-                        startHb()
-                    else
-                        stopHb()
-                    end
-                end)
-
-                if check.Visible then startHb() end
+                waitForSkillGui()
 
                 while autoSkill do task.wait(0.1) end
-                stopHb()
             end)
         end,
     })
