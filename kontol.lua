@@ -733,9 +733,6 @@ end
 
 do
     local autoSkill = false
-    local isMobile  = game:GetService("UserInputService").TouchEnabled
-                   and not game:GetService("UserInputService").KeyboardEnabled
-
     local s = SurTab:AddSection("Generator")
     s:AddToggle({
         Title    = "Auto SkillCheck (Perfect)",
@@ -744,86 +741,84 @@ do
             autoSkill = v
             if not v then return end
             task.spawn(function()
-                local genEvent = ReplicatedStorage
-                    :WaitForChild("Remotes")
-                    :WaitForChild("Generator")
-                    :WaitForChild("SkillCheckEvent")
-                local healEvent = ReplicatedStorage
-                    :WaitForChild("Remotes")
-                    :WaitForChild("Healing")
-                    :WaitForChild("SkillCheckEvent")
-                local function handleSkillCheck()
-                    if not autoSkill then return end
-                    local pg        = LocalPlayer:FindFirstChild("PlayerGui")
-                    local promptGui = pg and pg:FindFirstChild("SkillCheckPromptGui")
-                    local check     = promptGui and promptGui:FindFirstChild("Check")
-                    local line      = check and check:FindFirstChild("Line")
-                    local goal      = check and check:FindFirstChild("Goal")
-                    if not (line and goal) then return end
-                    local waitStart = tick()
-                    repeat
-                        task.wait(0.016)
-                        if not autoSkill then return end
-                    until check.Visible or (tick() - waitStart) > 2
-                    if not check.Visible then return end
-                    local goalRot      = goal.Rotation
-                    local perfectStart = 104 + goalRot
-                    local perfectEnd   = 114 + goalRot
-                    local offset       = 3
-                    local fired        = false
-                    local conn
-                    conn = RunService.RenderStepped:Connect(function()
-                        if fired or not autoSkill then
-                            conn:Disconnect(); return
-                        end
-                        if not check.Visible then
-                            conn:Disconnect(); return
-                        end
-                        local lineRot = line.Rotation
-                        if lineRot >= (perfectStart + offset) and lineRot <= perfectEnd then
-                            fired = true
-                            conn:Disconnect()
-                            if isMobile then
-                                local spaceBtn = check:FindFirstChild("Space")
-                                if spaceBtn then
-                                    local pos = spaceBtn.AbsolutePosition
-                                    local sz  = spaceBtn.AbsoluteSize
-                                    local cx  = pos.X + sz.X / 2
-                                    local cy  = pos.Y + sz.Y / 2
-                                    local vim = game:GetService("VirtualInputManager")
-                                    pcall(function()
-                                        vim:SendMouseButtonEvent(cx, cy, 0, true,  game, 1)
-                                        task.wait(0.03)
-                                        vim:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-                                    end)
-                                else
-                                    local vim = game:GetService("VirtualInputManager")
-                                    pcall(function()
-                                        vim:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
-                                        task.wait(0.03)
-                                        vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                    end)
-                                end
-                            else
-                                local vim = game:GetService("VirtualInputManager")
-                                pcall(function()
-                                    vim:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
-                                    task.wait(0.03)
-                                    vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                                end)
-                            end
-                        end
+                local pg        = LocalPlayer:FindFirstChild("PlayerGui")
+                if not pg then return end
+
+                local function pressSpace()
+                    pcall(function()
+                        local vim = game:GetService("VirtualInputManager")
+                        vim:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
+                        task.wait(0.01)
+                        vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                     end)
                 end
-                local genConn  = genEvent.OnClientEvent:Connect(function()
-                    task.spawn(handleSkillCheck)
-                end)
-                local healConn = healEvent.OnClientEvent:Connect(function()
-                    task.spawn(handleSkillCheck)
-                end)
+
+                local function lineInGoal(line, goal)
+                    if not line or not goal then return false end
+                    local lr = (line.Rotation or 0) % 360
+                    local gr = (goal.Rotation or 0) % 360
+                    local gs = (gr + 104) % 360
+                    local ge = (gr + 114) % 360
+                    if gs > ge then
+                        return lr >= gs or lr <= ge
+                    else
+                        return lr >= gs and lr <= ge
+                    end
+                end
+
+                local function attachAndWatch(promptGui)
+                    local check = promptGui:FindFirstChild("Check")
+                    if not check then return end
+                    local line = check:FindFirstChild("Line")
+                    local goal = check:FindFirstChild("Goal")
+                    if not line or not goal then return end
+
+                    local hbConn = nil
+
+                    local function stopHb()
+                        if hbConn then hbConn:Disconnect(); hbConn = nil end
+                    end
+
+                    local function startHb()
+                        stopHb()
+                        hbConn = RunService.Heartbeat:Connect(function()
+                            if not autoSkill then stopHb(); return end
+                            if not check.Visible then stopHb(); return end
+                            if lineInGoal(line, goal) then
+                                pressSpace()
+                                stopHb()
+                            end
+                        end)
+                    end
+
+                    check:GetPropertyChangedSignal("Visible"):Connect(function()
+                        if not autoSkill then return end
+                        if check.Visible then
+                            startHb()
+                        else
+                            stopHb()
+                        end
+                    end)
+
+                    if check.Visible then startHb() end
+                end
+
+                local function onChildAdded(child)
+                    if child.Name == "SkillCheckPromptGui" then
+                        task.wait(0.05)
+                        attachAndWatch(child)
+                    end
+                end
+
+                local conn = pg.ChildAdded:Connect(onChildAdded)
+
+                local existing = pg:FindFirstChild("SkillCheckPromptGui")
+                if existing then
+                    attachAndWatch(existing)
+                end
+
                 while autoSkill do task.wait(0.1) end
-                genConn:Disconnect()
-                healConn:Disconnect()
+                conn:Disconnect()
             end)
         end,
     })
