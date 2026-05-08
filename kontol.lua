@@ -1,3 +1,4 @@
+--awdaw
 repeat task.wait() until game:IsLoaded()
 if setfpscap then setfpscap(1000000) end
 local Players           = game:GetService("Players")
@@ -751,7 +752,6 @@ do
                     :WaitForChild("Healing")
                     :WaitForChild("SkillCheckEvent")
 
-                -- Tunggu GUI siap sekali saja
                 local pg        = LocalPlayer:WaitForChild("PlayerGui")
                 local promptGui = pg:WaitForChild("SkillCheckPromptGui", 15)
                 local check     = promptGui and promptGui:WaitForChild("Check", 15)
@@ -766,33 +766,29 @@ do
                 end
 
                 local function triggerInput()
-                    local vim = game:GetService("VirtualInputManager")
-                    if isMobile then
-                        -- Cari tombol Space di dalam Check
-                        local spaceBtn = check:FindFirstChild("Space")
-                        if spaceBtn then
-                            local pos   = spaceBtn.AbsolutePosition
-                            local sz    = spaceBtn.AbsoluteSize
-                            local inset = game:GetService("GuiService"):GetGuiInset()
-                            local cx    = pos.X + sz.X / 2 + inset.X
-                            local cy    = pos.Y + sz.Y / 2 + inset.Y
-                            pcall(function()
-                                vim:SendTouchEvent(TouchID, 0, cx, cy)
-                                task.wait(0.01)
-                                vim:SendTouchEvent(TouchID, 2, cx, cy)
-                            end)
-                        end
+                    local spaceBtn = check:FindFirstChild("Space")
+                    if spaceBtn and spaceBtn:IsA("GuiObject") then
+                        local pos   = spaceBtn.AbsolutePosition
+                        local sz    = spaceBtn.AbsoluteSize
+                        local inset = game:GetService("GuiService"):GetGuiInset()
+                        local cx    = pos.X + sz.X / 2 + inset.X
+                        local cy    = pos.Y + sz.Y / 2 + inset.Y
+                        pcall(function()
+                            game:GetService("VirtualInputManager"):SendTouchEvent(TouchID, 0, cx, cy)
+                            task.wait(0.01)
+                            game:GetService("VirtualInputManager"):SendTouchEvent(TouchID, 2, cx, cy)
+                        end)
                     else
                         pcall(function()
-                            vim:SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
+                            game:GetService("VirtualInputManager"):SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
                             task.wait(0.03)
-                            vim:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                            game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.Space, false, game)
                         end)
                     end
                 end
 
                 local function startHeartbeat()
-                    if heartConn then return end -- sudah jalan
+                    if heartConn then return end
                     heartConn = RunService.Heartbeat:Connect(function()
                         if not autoSkill then stopHeartbeat() return end
 
@@ -815,7 +811,6 @@ do
                     end)
                 end
 
-                -- Pantau visibility Check (lebih efisien dari polling)
                 visConn = check:GetPropertyChangedSignal("Visible"):Connect(function()
                     if not autoSkill then return end
                     if check.Visible then
@@ -825,13 +820,10 @@ do
                     end
                 end)
 
-                -- Jaga-jaga kalau Check sudah visible sebelum koneksi terpasang
                 if check.Visible then startHeartbeat() end
 
-                -- Tunggu sampai toggle dimatikan
                 while autoSkill do task.wait(0.1) end
 
-                -- Cleanup
                 stopHeartbeat()
                 if visConn then visConn:Disconnect() visConn = nil end
             end)
