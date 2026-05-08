@@ -1,4 +1,3 @@
---awdaw
 repeat task.wait() until game:IsLoaded()
 if setfpscap then setfpscap(1000000) end
 local Players           = game:GetService("Players")
@@ -735,6 +734,27 @@ end
 do
     local autoSkill = false
     local TouchID = 1
+    local ActionPath = "SkillCheckPromptGui.Check.Space"
+
+    local function TriggerMobileButton()
+        local cur = PlayerGui
+        for seg in string.gmatch(ActionPath, "[^%.]+") do
+            cur = cur and cur:FindFirstChild(seg)
+        end
+        if cur and cur:IsA("GuiObject") then
+            local pos   = cur.AbsolutePosition
+            local sz    = cur.AbsoluteSize
+            local inset = game:GetService("GuiService"):GetGuiInset()
+            local cx    = pos.X + sz.X / 2 + inset.X
+            local cy    = pos.Y + sz.Y / 2 + inset.Y
+            pcall(function()
+                VirtualInputManager:SendTouchEvent(TouchID, 0, cx, cy)
+                task.wait(0.01)
+                VirtualInputManager:SendTouchEvent(TouchID, 2, cx, cy)
+            end)
+        end
+    end
+
     local s = SurTab:AddSection("Generator")
     s:AddToggle({
         Title    = "Auto SkillCheck (Perfect)",
@@ -743,15 +763,6 @@ do
             autoSkill = v
             if not v then return end
             task.spawn(function()
-                local genEvent = ReplicatedStorage
-                    :WaitForChild("Remotes")
-                    :WaitForChild("Generator")
-                    :WaitForChild("SkillCheckEvent")
-                local healEvent = ReplicatedStorage
-                    :WaitForChild("Remotes")
-                    :WaitForChild("Healing")
-                    :WaitForChild("SkillCheckEvent")
-
                 local pg        = LocalPlayer:WaitForChild("PlayerGui")
                 local promptGui = pg:WaitForChild("SkillCheckPromptGui", 15)
                 local check     = promptGui and promptGui:WaitForChild("Check", 15)
@@ -763,28 +774,6 @@ do
 
                 local function stopHeartbeat()
                     if heartConn then heartConn:Disconnect() heartConn = nil end
-                end
-
-                local function triggerInput()
-                    local spaceBtn = check:FindFirstChild("Space")
-                    if spaceBtn and spaceBtn:IsA("GuiObject") then
-                        local pos   = spaceBtn.AbsolutePosition
-                        local sz    = spaceBtn.AbsoluteSize
-                        local inset = game:GetService("GuiService"):GetGuiInset()
-                        local cx    = pos.X + sz.X / 2 + inset.X
-                        local cy    = pos.Y + sz.Y / 2 + inset.Y
-                        pcall(function()
-                            game:GetService("VirtualInputManager"):SendTouchEvent(TouchID, 0, cx, cy)
-                            task.wait(0.01)
-                            game:GetService("VirtualInputManager"):SendTouchEvent(TouchID, 2, cx, cy)
-                        end)
-                    else
-                        pcall(function()
-                            game:GetService("VirtualInputManager"):SendKeyEvent(true,  Enum.KeyCode.Space, false, game)
-                            task.wait(0.03)
-                            game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                        end)
-                    end
                 end
 
                 local function startHeartbeat()
@@ -806,7 +795,7 @@ do
 
                         if inZone then
                             stopHeartbeat()
-                            triggerInput()
+                            TriggerMobileButton()
                         end
                     end)
                 end
