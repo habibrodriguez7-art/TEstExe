@@ -741,7 +741,7 @@ do
             autoSkill = v
             if not v then return end
             task.spawn(function()
-                local pg        = LocalPlayer:FindFirstChild("PlayerGui")
+                local pg = LocalPlayer:FindFirstChild("PlayerGui")
                 if not pg then return end
 
                 local function pressSpace()
@@ -766,59 +766,44 @@ do
                     end
                 end
 
-                local function attachAndWatch(promptGui)
-                    local check = promptGui:FindFirstChild("Check")
-                    if not check then return end
-                    local line = check:FindFirstChild("Line")
-                    local goal = check:FindFirstChild("Goal")
-                    if not line or not goal then return end
+                local skillGui  = pg:WaitForChild("SkillCheckPromptGui", 10)
+                if not skillGui then return end
+                local check = skillGui:WaitForChild("Check", 10)
+                if not check then return end
+                local line = check:WaitForChild("Line", 10)
+                local goal = check:WaitForChild("Goal", 10)
+                if not line or not goal then return end
 
-                    local hbConn = nil
+                local hbConn = nil
+                local function stopHb()
+                    if hbConn then hbConn:Disconnect(); hbConn = nil end
+                end
 
-                    local function stopHb()
-                        if hbConn then hbConn:Disconnect(); hbConn = nil end
-                    end
-
-                    local function startHb()
-                        stopHb()
-                        hbConn = RunService.Heartbeat:Connect(function()
-                            if not autoSkill then stopHb(); return end
-                            if not check.Visible then stopHb(); return end
-                            if lineInGoal(line, goal) then
-                                pressSpace()
-                                stopHb()
-                            end
-                        end)
-                    end
-
-                    check:GetPropertyChangedSignal("Visible"):Connect(function()
-                        if not autoSkill then return end
-                        if check.Visible then
-                            startHb()
-                        else
+                local function startHb()
+                    stopHb()
+                    hbConn = RunService.Heartbeat:Connect(function()
+                        if not autoSkill then stopHb(); return end
+                        if not check.Visible then stopHb(); return end
+                        if lineInGoal(line, goal) then
+                            pressSpace()
                             stopHb()
                         end
                     end)
-
-                    if check.Visible then startHb() end
                 end
 
-                local function onChildAdded(child)
-                    if child.Name == "SkillCheckPromptGui" then
-                        task.wait(0.05)
-                        attachAndWatch(child)
+                check:GetPropertyChangedSignal("Visible"):Connect(function()
+                    if not autoSkill then return end
+                    if check.Visible then
+                        startHb()
+                    else
+                        stopHb()
                     end
-                end
+                end)
 
-                local conn = pg.ChildAdded:Connect(onChildAdded)
-
-                local existing = pg:FindFirstChild("SkillCheckPromptGui")
-                if existing then
-                    attachAndWatch(existing)
-                end
+                if check.Visible then startHb() end
 
                 while autoSkill do task.wait(0.1) end
-                conn:Disconnect()
+                stopHb()
             end)
         end,
     })
