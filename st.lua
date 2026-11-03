@@ -496,22 +496,14 @@ function Library:CreateWindow(config)
         Parent = header, ZIndex = 6, Text = config.Subtitle or "", Size = u2(0, 200, 1, 0), Position = u2(0, 96, 0, 0),
         TextColor3 = colors.textDim,
     })
-    local minStroke = stroke()
     local minBtn = new("TextButton", {
         Parent = header, ZIndex = 7, Size = u2(0, 22, 0, 22), Position = u2(1, -28, 0.5, -11),
         BackgroundColor3 = colors.bg2, BackgroundTransparency = SECTION_T,
-    }, { corner(5), minStroke })
-    local minLine = new("Frame", {
+    }, { corner(5) })
+    new("Frame", {
         Parent = minBtn, ZIndex = 8, AnchorPoint = v2(0.5, 0.5), Position = u2(0.5, 0, 0.5, 0),
         Size = u2(0, 10, 0, 2), BackgroundColor3 = colors.primary,
     }, { corner() })
-    local function setMinHover(on)
-        minBtn.BackgroundColor3 = on and colors.bg3 or colors.bg2
-        minStroke.Color = on and colors.primary or colors.border
-        minStroke.Transparency = on and 0.1 or 0.4
-        minLine.Size = u2(0, on and 12 or 10, 0, 2)
-    end
-    onHover(minBtn, function() setMinHover(true) end, function() setMinHover(false) end)
     local discordLink, discordText = "https://discord.gg/lynxx", "discord.gg/lynxx"
     local discordTextW = math.ceil(TextService:GetTextSize(discordText, FONT.small, BOLD, v2(1000, 100)).X)
     local discordW = discordTextW + 42
@@ -526,13 +518,10 @@ function Library:CreateWindow(config)
         Parent = discordBtn, ZIndex = 8, Size = u2(0, 1, 0, 12), Position = u2(0, 28, 0.5, -6),
         BackgroundColor3 = colors.primary, BackgroundTransparency = 0.45,
     }, { fadeEnds(90) })
-    local discordLabel = new("TextLabel", {
+    new("TextLabel", {
         Parent = discordBtn, ZIndex = 8, Text = discordText, TextColor3 = colors.primary,
         TextTruncate = Enum.TextTruncate.AtEnd, Size = u2(0, discordTextW + 2, 1, 0), Position = u2(0, 33, 0, 0),
     })
-    onHover(discordBtn,
-        function() discordLabel.TextColor3 = colors.text end,
-        function() discordLabel.TextColor3 = colors.primary end)
     discordBtn.MouseButton1Click:Connect(function()
         local clip = setclipboard or toclipboard or writeclipboard
             or (Clipboard and Clipboard.set) or (clipboard and clipboard.set)
@@ -645,12 +634,11 @@ function Library:_createSearchBar()
     local PANEL_W, ROW_H, ROW_GAP, LIST_PAD, MAX_PANEL_H = 230, 32, 2, 4, 200
     local ROW_STRIDE = ROW_H + ROW_GAP
     local POOL_SIZE = math.ceil(MAX_PANEL_H / ROW_STRIDE) + 1
-    local searchStroke = stroke()
     local container = new("Frame", {
         Parent = self._sidebar, Name = "SearchBar", ZIndex = 7,
         Size = u2(0, SEARCH_W, 0, SEARCH_H), Position = u2(0, 6, 0, 6),
         BackgroundColor3 = colors.bg2, BackgroundTransparency = SECTION_T,
-    }, { corner(5), searchStroke })
+    }, { corner(5), stroke() })
     new("ImageLabel", {
         Parent = container, ZIndex = 8, Image = "rbxassetid://109869955247116", ImageColor3 = colors.textDimmer,
         Size = u2(0, 14, 0, 14), Position = u2(0, 6, 0.5, -7),
@@ -779,12 +767,6 @@ function Library:_createSearchBar()
             searchThread = nil
             doSearch(text)
         end)
-    end)
-    searchBox.Focused:Connect(function()
-        searchStroke.Color, searchStroke.Transparency = colors.primary, 0.1
-    end)
-    searchBox.FocusLost:Connect(function()
-        searchStroke.Color, searchStroke.Transparency = colors.border, 0.4
     end)
     clearBtn.MouseButton1Click:Connect(function() searchBox.Text = "" end)
     onHover(clearBtn,
