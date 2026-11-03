@@ -582,17 +582,26 @@ function Library:CreateWindow(config)
             BackgroundColor3 = colors.textDim, BackgroundTransparency = 0.35,
         })
     end
-    local sizeStart, frozenPage
+    local sizeStart, frozenPage, frozenW, frozenH
     trackDrag(resizeHandle, function()
         sizeStart, resizing = win.AbsoluteSize, true
         local page = self.pages[self._currentPage]
         frozenPage = page and page.frame
-        if frozenPage then freezePage(frozenPage) end
+        if frozenPage then
+            freezePage(frozenPage)
+            frozenW, frozenH = frozenPage.Size.X.Offset, frozenPage.Size.Y.Offset
+        end
     end, function(delta)
-        win.Size = u2(
-            0, math.clamp(sizeStart.X + delta.X, minSize.X, MAX_SIZE.X),
-            0, math.clamp(sizeStart.Y + delta.Y, minSize.Y, MAX_SIZE.Y)
-        )
+        local w = math.clamp(sizeStart.X + delta.X, minSize.X, MAX_SIZE.X)
+        local h = math.clamp(sizeStart.Y + delta.Y, minSize.Y, MAX_SIZE.Y)
+        win.Size = u2(0, w, 0, h)
+        if not frozenPage then return end
+        local pageW = w - (SIDEBAR_W + 6) - 12
+        local pageH = h - (HEADER_H + 3) - (TOPBAR_H + 10)
+        if pageW < frozenW or pageH < frozenH then
+            frozenW, frozenH = math.max(0, math.min(frozenW, pageW)), math.max(0, math.min(frozenH, pageH))
+            frozenPage.Size = u2(0, frozenW, 0, frozenH)
+        end
     end, function()
         resizing = false
         syncParking()
